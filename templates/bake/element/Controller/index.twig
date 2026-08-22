@@ -1,0 +1,187 @@
+{#
+/**
+ * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
+ * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ *
+ * Licensed under The MIT License
+ * For full copyright and license information, please see the LICENSE.txt
+ * Redistributions of files must retain the above copyright notice.
+ *
+ * @copyright     Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ * @link          https://cakephp.org CakePHP(tm) Project
+ * @since         2.0.0
+ * @license       https://www.opensource.org/licenses/mit-license.php MIT License
+ */
+#}
+    /**
+     * Index method
+     *
+     * @return \Cake\Http\Response|null|void Renders view
+     */
+    public function index()
+    {
+{% set belongsTo = Bake.aliasExtractor(modelObj, 'BelongsTo') %}
+{% set schema = modelObj.getSchema() %}
+{% set primaryKey = modelObj.getPrimaryKey() %}
+{% set skipSearchFields = ['password', 'secret', 'token', 'api_token', 'login_token', 'avatar', 'additional_data'] %}
+{% set searchTypes = ['string', 'char', 'uuid'] %}
+        $queryParams = $this->getRequest()->getQueryParams();
+
+        // Szülő-szűrés kikapcsolása: ?clear=filter → teljes lista, session törlése
+        if (isset($queryParams['clear']) && $queryParams['clear'] === 'filter') {
+            $this->session->delete('Paging.{{ currentModelName }}.params');
+
+            return $this->redirect(['action' => 'index']);
+        }
+
+        // Keresés és szűrők törlése gomb kezelése (?clear=search)
+        if (isset($queryParams['clear']) && $queryParams['clear'] === 'search') {
+            $this->session->delete('Paging.{{ currentModelName }}.params');
+
+            $redirectParams = $queryParams;
+            unset($redirectParams['clear'], $redirectParams['search'], $redirectParams['page']);
+
+            return $this->redirect([
+                'action' => 'index',
+                '?' => $redirectParams ?: null,
+            ]);
+        }
+
+        // =========================================================================
+        // ⚙️ KERESÉSI BEÁLLÍTÁSOK (Itt kapcsold be/ki a kívánt keresési mezőket)
+        // =========================================================================
+        $searchableFields = [
+            // --- 1. Saját tábla ({{ currentModelName }}) mezői (sütéskor: string/uuid oszlopok) ---
+            // '{{ currentModelName }}.id',
+{% for field in schema.columns() %}
+{% set fieldData = Bake.columnData(field, schema) %}
+{% if fieldData and fieldData.type in searchTypes and field not in skipSearchFields and field not in primaryKey %}
+            '{{ currentModelName }}.{{ field }}',
+{% endif %}
+{% endfor %}
+{% if belongsTo %}
+            // --- 2. Kapcsolt (BelongsTo) táblák megjelenítő mezői ---
+{% for alias in belongsTo %}
+{% set assocDisplayField = modelObj.getAssociation(alias).getTarget().getDisplayField() %}
+            '{{ alias }}.{{ assocDisplayField }}',
+{% endfor %}
+{% endif %}
+        ];
+
+        // =========================================================================
+        // ⚙️ LAPOZÓ BEÁLLÍTÁSA
+        // =========================================================================
+        $this->paginate = [
+            'limit' => 20,
+            'maxLimit' => 100,
+        ];
+
+        // Ha üres az URL, de a Sessionben van érvényes mentett állapot, oda irányítunk vissza
+        // (szülő-szűrt lista NEM áll vissza automatikusan – csak explicit URL-ből)
+        if (empty($queryParams) && $this->session->check('Paging.{{ currentModelName }}.params')) {
+            $savedParams = (array)$this->session->read('Paging.{{ currentModelName }}.params');
+            if (!empty($savedParams) && !array_key_exists('parent_filter', $savedParams)) {
+                return $this->redirect([
+                    'action' => 'index',
+                    '?' => $savedParams,
+                ]);
+            }
+        }
+
+{% if belongsTo %}
+        $query = $this->fetchTable('{{ currentModelName }}')->find()
+            ->contain({{ Bake.exportArray(belongsTo)|raw }});
+{% else %}
+        $query = $this->fetchTable('{{ currentModelName }}')->find();
+{% endif %}
+
+        // =========================================================================
+        // 🔗 SZÜLŐ REKORD SZERINTI SZŰRÉS (gyerek lista a szülő index gombjából)
+        // Csak ?parent_filter=... + a hozzá tartozó FK paraméter együtt esetén aktív.
+        // =========================================================================
+        $parentContext = null;
+        $parentFilter = isset($queryParams['parent_filter']) ? (string)$queryParams['parent_filter'] : null;
+        $table = $this->fetchTable('{{ currentModelName }}');
+        foreach ($table->associations()->getByType('BelongsTo') as $association) {
+            if ($parentFilter === null || $parentFilter !== $association->getName()) {
+                continue;
+            }
+
+            $foreignKey = $association->getForeignKey();
+            if (!is_string($foreignKey)) {
+                continue;
+            }
+
+            $filterValue = $queryParams[$foreignKey] ?? null;
+            if ($filterValue === null || $filterValue === '') {
+                continue;
+            }
+
+            $query->where(['{{ currentModelName }}.' . $foreignKey => $filterValue]);
+
+            $parentTable = $association->getTarget();
+            try {
+                $parentEntity = $this->fetchTable($parentTable->getAlias())->get($filterValue);
+            } catch (\Cake\Datasource\Exception\RecordNotFoundException $e) {
+                throw new \Cake\Http\Exception\NotFoundException(__('Parent record not found.'));
+            }
+
+            $displayField = $parentTable->getDisplayField();
+            $parentContext = [
+                'association' => $association->getName(),
+                'foreignKey' => $foreignKey,
+                'foreignKeyValue' => $filterValue,
+                'parentFilter' => $parentFilter,
+                'controller' => $association->getName(),
+                'displayField' => $displayField,
+                'label' => (string)($parentEntity->{$displayField} ?? $filterValue),
+            ];
+            break;
+        }
+
+        // =========================================================================
+        // 🔍 KERESÉS VÉGREHAJTÁSA A KONFIGURÁLT MEZŐK ALAPJÁN
+        // =========================================================================
+        $search = trim((string)($queryParams['search'] ?? ''));
+        if ($search !== '' && !empty($searchableFields)) {
+            $searchLike = '%' . $search . '%';
+            $conditions = [];
+
+            foreach ($searchableFields as $field) {
+                $conditions[$field . ' LIKE'] = $searchLike;
+            }
+
+            $query->where(['OR' => $conditions]);
+        }
+
+        // =========================================================================
+        // 📄 LAPOZÁS VÉGREHAJTÁSA HIBAKEZELÉSSEL
+        // =========================================================================
+        try {
+            ${{ pluralName }} = $this->paginate($query);
+
+            if (!empty($queryParams)) {
+                $this->session->write('Paging.{{ currentModelName }}.params', $queryParams);
+            } elseif ($parentContext === null) {
+                $this->session->delete('Paging.{{ currentModelName }}.params');
+            }
+        } catch (\Cake\Http\Exception\NotFoundException $e) {
+            $this->Flash->warning(__('Page not found. Redirecting to the first page.'), ['plugin' => 'KvAdmin']);
+
+            $fallbackParams = $queryParams;
+            unset($fallbackParams['page']);
+
+            $this->session->write('Paging.{{ currentModelName }}.params', $fallbackParams);
+
+            return $this->redirect([
+                'action' => 'index',
+                '?' => $fallbackParams,
+            ]);
+        }
+
+        // Utoljára megtekintett / szerkesztett rekord visszagörgetésének támogatása
+        $lastViewedId = $this->session->read('LastViewed.{{ singularName }}_id');
+        $scrollToId = $this->session->read('ScrollTo.{{ singularName }}_id') ?? $lastViewedId;
+
+        $this->set(compact('{{ pluralName }}', 'lastViewedId', 'scrollToId', 'search', 'parentContext'));
+    }

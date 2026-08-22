@@ -1,0 +1,428 @@
+{#
+/**
+ * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
+ * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ *
+ * Licensed under The MIT License
+ * For full copyright and license information, please see the LICENSE.txt
+ * Redistributions of files must retain the above copyright notice.
+ *
+ * @copyright     Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ * @link          https://cakephp.org CakePHP(tm) Project
+ * @since         2.0.0
+ * @license       https://www.opensource.org/licenses/mit-license.php MIT License
+ */
+#}
+{% set fields = Bake.filterFields(fields, schema, modelObject) %}
+{% set textFields = [] %}
+{% set hasDateTime = false %}
+{% set hasDate = false %}
+{% set hasTime = false %}
+{% set hasPhone = false %}
+{% set hasVisibleOrPos = false %}
+{% set hasPos = false %}
+{% set hasVisible = false %}
+{% for field in fields %}
+{% set fieldData = Bake.columnData(field, schema) %}
+{% if field in ['pos', 'visible'] %}
+{% set hasVisibleOrPos = true %}
+{% endif %}
+{% if field == 'pos' %}
+{% set hasPos = true %}
+{% endif %}
+{% if field == 'visible' %}
+{% set hasVisible = true %}
+{% endif %}
+{% if field in ['created', 'modified', 'updated'] %}
+{% elseif fieldData.type in ['text'] %}
+{% set textFields = textFields|merge([field]) %}
+{% elseif fieldData.type in ['datetime', 'timestamp', 'timestampfractional'] %}
+{% set hasDateTime = true %}
+{% elseif fieldData.type == 'date' %}
+{% set hasDate = true %}
+{% elseif fieldData.type == 'time' %}
+{% set hasTime = true %}
+{% elseif field == 'phone' %}
+{% set hasPhone = true %}
+{% endif %}
+{% endfor %}
+{% set hasTextFields = textFields|length > 0 %}
+{% set hasFlatpickr = hasDateTime or hasDate or hasTime %}
+{% set hasTomSelectSingle = keyFields is defined and keyFields|length > 0 %}
+{% set hasTomSelectMulti = associations.BelongsToMany is defined and associations.BelongsToMany|length > 0 %}
+{% set hasTomSelect = hasTomSelectSingle or hasTomSelectMulti %}
+
+<div class="page-header d-print-none mb-3 {{ pluralVar }}">
+    <div class="row align-items-center">
+        <div class="col">
+{%~ if action == 'add' %}
+            <h2 class="page-title"><?= __('Új {0} felvitele', __('{{ singularHumanName }}')) ?></h2>
+{%~ else %}
+            <h2 class="page-title"><?= __('{0} módosítása', __('{{ singularHumanName }}')) ?></h2>
+{%~ endif %}
+        </div>
+        <div class="col-auto ms-auto">
+            <?= $this->KvForm->linkCloseIndex() ?>
+        </div>
+    </div>
+</div>
+
+<div class="card {{ pluralVar }}">
+    <?= $this->Form->create(${{ singularVar }}) ?>
+
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" data-bs-toggle="tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <?= $this->KvForm->linkTab(__('Datasheet'), '#tabs-datesheet', true) ?>
+            </li>
+
+{% if hasTextFields %}
+{% for field in textFields %}
+            <li class="nav-item" role="presentation">
+                <?= $this->KvForm->linkTab(__('{{ field|humanize }}'), '#tabs-{{ field|lower }}') ?>
+            </li>
+{% endfor %}
+{% else %}
+            <?php /*
+            <!-- Text mező tab fül – text oszlop hozzáadásakor vedd ki a kommentet és cseréld a mezőnevet -->
+            <li class="nav-item" role="presentation">
+                <?= $this->KvForm->linkTab(__('Body Html'), '#tabs-body_html') ?>
+            </li>
+            */ ?>
+{% endif %}
+
+{% if hasVisibleOrPos %}
+            <li class="nav-item ms-auto" role="presentation">
+                <?= $this->KvForm->linkTabSettings() ?>
+            </li>
+{% else %}
+            <?php /*
+            <!-- Settings tab fül – visible/pos mező hozzáadásakor vedd ki a kommentet -->
+            <li class="nav-item ms-auto" role="presentation">
+                <?= $this->KvForm->linkTabSettings() ?>
+            </li>
+            */ ?>
+{% endif %}
+        </ul>
+    </div>
+
+    <div class="card-body pb-4">
+        <div class="tab-content">
+
+            <!-- 1. Datasheet TAB -->
+            <div class="tab-pane fade show active" id="tabs-datesheet" role="tabpanel">
+                <div class="row g-3">
+{% for field in fields %}
+    {%~ if field not in primaryKey and field not in ['pos', 'visible'] %}
+        {%~ if keyFields[field] is defined %}
+            {%~ set fieldData = Bake.columnData(field, schema) %}
+                    <div class="col-md-6">
+                        <?= $this->Form->control('{{ field }}', [
+                            'options' => ${{ keyFields[field] }},
+                            'label' => ['text' => __('{{ field|humanize }}'), 'class' => 'form-label'],
+                            'class' => 'form-select tom-select',
+                            'empty' => '',
+{%~ if action == 'add' %}
+                            'value' => '',
+{%~ endif %}
+{%~ if not fieldData.null %}
+                            'required' => true,
+{%~ endif %}
+                        ]) ?>
+                    </div>
+        {%~ elseif field not in ['created', 'modified', 'updated'] %}
+            {%~ set fieldData = Bake.columnData(field, schema) %}
+            {%~ set isRequired = (not fieldData.null and fieldData.default is null and field not in primaryKey) %}
+            {%~ if fieldData.type in ['datetime', 'timestamp', 'timestampfractional'] %}
+                    <div class="col-md-4">
+                        <?= $this->KvForm->dateTimePicker('{{ field }}', ['label' => ['text' => __('{{ field|humanize }}')]{{ isRequired ? ", 'required' => true" : "" }}]) ?>
+                    </div>
+            {%~ elseif fieldData.type == 'date' %}
+                    <div class="col-md-4">
+                        <?= $this->KvForm->datePicker('{{ field }}', ['label' => ['text' => __('{{ field|humanize }}')]{{ isRequired ? ", 'required' => true" : "" }}]) ?>
+                    </div>
+            {%~ elseif fieldData.type == 'time' %}
+                    <div class="col-md-4">
+                        <?= $this->KvForm->timePicker('{{ field }}', ['label' => ['text' => __('{{ field|humanize }}')]{{ isRequired ? ", 'required' => true" : "" }}]) ?>
+                    </div>
+            {%~ elseif fieldData.type in ['string', 'char', 'uuid'] %}
+                    <div class="col-md-6">
+                        <?= $this->Form->control('{{ field }}', ['label' => ['text' => __('{{ field|humanize }}'), 'class' => 'form-label'], 'class' => 'form-control'{{ isRequired ? ", 'required' => true" : "" }}]) ?>
+                    </div>
+            {%~ elseif fieldData.type in ['boolean'] %}
+                    <div class="col-md-6">
+                        <div class="form-label"><?= __('{{ field|humanize }}') ?></div>
+                        <?= $this->KvForm->switch('{{ field }}', ['label' => __('{{ field|humanize }}')]) ?>
+                    </div>
+            {%~ elseif fieldData.type in ['integer', 'biginteger', 'smallinteger', 'tinyinteger', 'decimal', 'float'] %}
+                {%~ set isUnsigned = fieldData.unsigned ?? false %}
+                {%~ set minValue = isUnsigned ? 0 : null %}
+                {%~ set maxValue = null %}
+                {%~ set precision = fieldData.precision ?? 0 %}
+                {%~ if fieldData.type == 'tinyinteger' %}
+                    {%~ set minValue = isUnsigned ? 0 : -128 %}
+                    {%~ set maxValue = isUnsigned ? 255 : 127 %}
+                {%~ elseif fieldData.type == 'smallinteger' %}
+                    {%~ set minValue = isUnsigned ? 0 : -32768 %}
+                    {%~ set maxValue = isUnsigned ? 65535 : 32767 %}
+                {%~ elseif fieldData.type == 'integer' %}
+                    {%~ set minValue = isUnsigned ? 0 : -2147483648 %}
+                    {%~ set maxValue = isUnsigned ? 4294967295 : 2147483647 %}
+                {%~ endif %}
+                    <div class="col-md-6">
+                        <?= $this->Form->control('{{ field }}', [
+                            'type' => 'number',
+                            'label' => ['text' => __('{{ field|humanize }}'), 'class' => 'form-label'],
+                            'class' => 'form-control',
+{% if minValue is not null %}
+                            'min' => {{ minValue }},
+{% endif %}
+{% if maxValue is not null %}
+                            'max' => {{ maxValue }},
+{% endif %}
+{% if precision > 0 %}
+                            'step' => '{{ (1 / (10 ** precision))|number_format(precision, '.', '') }}',
+{% else %}
+                            'step' => '1',
+{% endif %}
+{% if action == 'add' and fieldData.default is not null %}
+                            'value' => '{{ fieldData.default }}',
+{% endif %}
+{% if isRequired %}
+                            'required' => true,
+{% endif %}
+                        ]) ?>
+                        <?php
+                        /*
+                         * Spinner változat – ha numberSpinner kell, kommentezd ki a fenti Form->control blokkot
+                         * és vedd ki a kommentet az alábbi sorok körül:
+                         *
+                        <?= $this->KvForm->numberSpinner('{{ field }}', [
+                            'label' => ['text' => __('{{ field|humanize }}')],
+{% if minValue is not null %}
+                            'min' => {{ minValue }},
+{% endif %}
+{% if maxValue is not null %}
+                            'max' => {{ maxValue }},
+{% endif %}
+{% if precision > 0 %}
+                            'step' => '{{ (1 / (10 ** precision))|number_format(precision, '.', '') }}',
+{% else %}
+                            'step' => '1',
+{% endif %}
+{% if action == 'add' and fieldData.default is not null %}
+                            'value' => '{{ fieldData.default }}',
+{% endif %}
+{% if isRequired %}
+                            'required' => true,
+{% endif %}
+                        ]) ?>
+                         */
+                        ?>
+                    </div>
+            {%~ endif %}
+        {%~ endif %}
+    {%~ endif %}
+{% endfor %}
+
+{% if associations.BelongsToMany is defined %}
+    {%~ for assocName, assocData in associations.BelongsToMany %}
+                    <!-- {{ assocData.property }} (Többes választás) -->
+                    <div class="col-md-6">
+                        <?= $this->Form->control('{{ assocData.property }}._ids', [
+                            'options' => ${{ assocData.variable }},
+                            'type' => 'select',
+                            'multiple' => true,
+                            'label' => ['text' => __('{{ assocData.property|humanize }} input'), 'class' => 'form-label'],
+                            'class' => 'form-select tom-select multi-select',
+                            'empty' => false
+                        ]) ?>
+                    </div>
+    {%~ endfor %}
+{% endif %}
+                </div>
+            </div> <!-- /#tabs-datesheet -->
+
+{% if hasTextFields %}
+{% for field in textFields %}
+            <!-- Text tab: {{ field }} -->
+            <div class="tab-pane fade" id="tabs-{{ field|lower }}" role="tabpanel">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <?= $this->Form->control('{{ field }}', [
+                            'type' => 'textarea',
+                            'id' => 'hugerte-{{ field|lower }}',
+                            'label' => false,
+                            'class' => 'form-control hugerte-editor',
+                            'rows' => 14,
+                        ]) ?>
+                    </div>
+                </div>
+            </div> <!-- /#tabs-{{ field|lower }} -->
+{% endfor %}
+{% else %}
+            <?php /*
+            <!-- Text mező tab tartalom – text oszlop hozzáadásakor vedd ki a kommentet -->
+            <div class="tab-pane fade" id="tabs-body_html" role="tabpanel">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <?= $this->Form->control('body_html', [
+                            'type' => 'textarea',
+                            'id' => 'hugerte-body_html',
+                            'label' => false,
+                            'class' => 'form-control hugerte-editor',
+                            'rows' => 14,
+                        ]) ?>
+                    </div>
+                </div>
+            </div>
+            */ ?>
+{% endif %}
+
+{% if hasVisibleOrPos %}
+            <!-- 3. Settings TAB -->
+            <div class="tab-pane fade" id="tabs-settings" role="tabpanel">
+                <div class="mb-3">
+                    <h4 class="card-title mb-1"><?= __('Beállítások') ?></h4>
+                    <div class="text-secondary small"><?= __('Itt állítható a megjelenés és az alapértelmezett sorrend.') ?></div>
+                </div>
+
+                <div class="row g-3">
+{% if hasVisible %}
+                    <!-- Láthatóság -->
+                    <div class="col-12">
+                        <div class="col-sm-6 col-md-4">
+                            <label class="form-label"><?= __('Visible') ?></label>
+                            <div class="pt-2">
+{% if action == 'add' %}
+                                <?= $this->KvForm->switch('visible', ['label' => __('Active / Visible'), 'size' => '3', 'checked' => true]) ?>
+{% else %}
+                                <?= $this->KvForm->switch('visible', ['label' => __('Active / Visible'), 'size' => '3']) ?>
+{% endif %}
+                            </div>
+                        </div>
+                    </div>
+{% else %}
+                    <?php /*
+                    <!-- Visible mező – visible oszlop hozzáadásakor vedd ki a kommentet -->
+                    <div class="col-12">
+                        <div class="col-sm-6 col-md-4">
+                            <label class="form-label"><?= __('Visible') ?></label>
+                            <div class="pt-2">
+                                <?= $this->KvForm->switch('visible', ['label' => __('Active / Visible'), 'size' => '3']) ?>
+                            </div>
+                        </div>
+                    </div>
+                    */ ?>
+{% endif %}
+{% if hasPos %}
+                    <!-- Pozíció -->
+                    <div class="col-12">
+                        <div class="col-sm-6 col-md-4">
+                            <?= $this->Form->control('pos', [
+                                'type' => 'number',
+                                'label' => ['text' => __('Position'), 'class' => 'form-label'],
+                                'class' => 'form-control',
+                                'min' => -10000,
+                                'max' => 10000,
+                                'step' => '1',
+{%~ if action == 'add' %}
+                                'value' => '1000',
+{%~ endif %}
+                            ]) ?>
+                            <?php
+                            /*
+                             * Spinner változat – ha numberSpinner kell, kommentezd ki a fenti Form->control blokkot
+                             * és vedd ki a kommentet az alábbi sorok körül:
+                             *
+{%~ if action == 'add' %}
+                            <?= $this->KvForm->numberSpinner('pos', ['label' => ['text' => __('Position')], 'min' => -10000, 'max' => 10000, 'step' => '1', 'value' => '1000']) ?>
+{%~ else %}
+                            <?= $this->KvForm->numberSpinner('pos', ['label' => ['text' => __('Position')], 'min' => -10000, 'max' => 10000, 'step' => '1']) ?>
+{%~ endif %}
+                             */
+                            ?>
+                        </div>
+                    </div>
+{% else %}
+                    <?php /*
+                    <!-- Pos mező – pos oszlop hozzáadásakor vedd ki a kommentet -->
+                    <div class="col-12">
+                        <div class="col-sm-6 col-md-4">
+                            <?= $this->Form->control('pos', [
+                                'type' => 'number',
+                                'label' => ['text' => __('Position'), 'class' => 'form-label'],
+                                'class' => 'form-control',
+                                'min' => -10000,
+                                'max' => 10000,
+                                'step' => '1',
+                            ]) ?>
+                        </div>
+                    </div>
+                    */ ?>
+{% endif %}
+                </div>
+            </div> <!-- /#tabs-settings -->
+{% else %}
+            <?php /*
+            <!-- Settings tab tartalom – visible/pos mező hozzáadásakor vedd ki a kommentet -->
+            <div class="tab-pane fade" id="tabs-settings" role="tabpanel">
+                <div class="mb-3">
+                    <h4 class="card-title mb-1"><?= __('Beállítások') ?></h4>
+                    <div class="text-secondary small"><?= __('Itt állítható a megjelenés és az alapértelmezett sorrend.') ?></div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="col-sm-6 col-md-4">
+                            <label class="form-label"><?= __('Visible') ?></label>
+                            <div class="pt-2">
+                                <?= $this->KvForm->switch('visible', ['label' => __('Active / Visible'), 'size' => '3']) ?>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="col-sm-6 col-md-4">
+                            <?= $this->Form->control('pos', [
+                                'type' => 'number',
+                                'label' => ['text' => __('Position'), 'class' => 'form-label'],
+                                'class' => 'form-control',
+                                'min' => -10000,
+                                'max' => 10000,
+                                'step' => '1',
+                            ]) ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            */ ?>
+{% endif %}
+
+        </div> <!-- /.tab-content -->
+    </div> <!-- /.card-body -->
+
+    <div class="card-footer text-start">
+        <!-- Mentés gomb -->
+        <?= $this->KvForm->saveButton() ?>
+
+        <!-- Mégse gomb: visszatér a jelenlegi controller index() akciójára -->
+        <?= $this->KvForm->cancelButton() ?>
+    </div>
+
+    <?= $this->Form->end() ?>
+</div>
+
+{{ element('Bake.form_assets', {
+    hasTomSelect: hasTomSelect,
+    hasFlatpickr: hasFlatpickr,
+    hasPhone: hasPhone,
+    hasTextFields: hasTextFields,
+}) }}
+{{ element('Bake.form_scripts', {
+    hasPhone: hasPhone,
+    hasTomSelectSingle: hasTomSelectSingle,
+    hasTomSelectMulti: hasTomSelectMulti,
+    hasTextFields: hasTextFields,
+    hasDateTime: hasDateTime,
+    hasDate: hasDate,
+    hasTime: hasTime,
+}) }}

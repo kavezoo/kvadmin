@@ -1,0 +1,371 @@
+{#
+/**
+ * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
+ * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ *
+ * Licensed under The MIT License
+ * For full copyright and license information, please see the LICENSE.txt
+ * Redistributions of files must retain the above copyright notice.
+ *
+ * @copyright     Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ * @link          https://cakephp.org CakePHP(tm) Project
+ * @since         2.0.0
+ * @license       https://www.opensource.org/licenses/mit-license.php MIT License
+ */
+#}
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var iterable<\App\Model\Entity\{{ singularName }}> ${{ pluralVar }}
+ * @var int|null $lastViewedId
+ * @var int|null $scrollToId
+ * @var string|null $search
+ * @var array<string, mixed>|null $parentContext
+ */
+use Cake\I18n\I18n;
+
+$showId            = false;
+$showCounterFields = false;
+$showVisible       = true;
+$showCreated       = false;
+$showModified      = false;
+$showPos           = false;
+
+$this->assign('title', __('{{ pluralVar|capitalize }}'));
+$this->element('KvAdmin.pagination_templates');
+
+$lastViewedId = $lastViewedId ?? $session->read('LastViewed.' . $prefix . '.{{ singularVar }}_id');
+$scrollToId = $scrollToId ?? $session->read('ScrollTo.' . $prefix . '.{{ singularVar }}_id') ?? $lastViewedId;
+
+// 🔍 Keresési kiemelő segédfüggvény
+$highlight = function (?string $text) use ($search): string {
+    if ($text === null || $text === '') {
+        return '';
+    }
+
+    $escapedText = h($text);
+    if (!empty($search)) {
+        $cleanSearch = preg_quote(trim($search), '/');
+        return preg_replace('/(' . $cleanSearch . ')/iu', '<mark class="search-highlight">$1</mark>', $escapedText);
+    }
+    return $escapedText;
+};
+?>
+{% set fields = Bake.filterFields(fields, schema, modelObject, indexColumns, ['binary', 'text']) %}
+{% set pk = '$' ~ singularVar ~ '->' ~ primaryKey[0] %}
+{% set associations = {'BelongsTo': [], 'HasOne': [], 'HasMany': [], 'BelongsToMany': []}|merge(associations|default({})) %}
+{% set childAssociations = associations.HasMany|default({}) %}
+
+<div class="card">
+    <?php if (!empty($parentContext)): ?>
+    <div class="card-status-top bg-azure"></div>
+    <div class="card-header border-bottom-0 pb-0">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="badge bg-azure-lt"><?= __('Szűrt lista') ?></span>
+            <span class="text-secondary">
+                <?= __('{0} rekordhoz tartozó {1}', h($parentContext['label']), __('{{ pluralHumanName }}')) ?>
+            </span>
+            <?= $this->KvForm->linkParentView($parentContext) ?>
+            <?= $this->KvForm->linkFullList() ?>
+        </div>
+    </div>
+    <?php endif; ?>
+    <div class="card-header pe-3">
+        <div class="row w-full align-items-center gy-2 gy-md-0">
+
+            <!-- Új {{ singularVar }} gomb -->
+            <div class="col-auto">
+                <?= $this->KvForm->linkAddNew(['controller' => '{{ pluralVar|capitalize }}', 'action' => 'add'], __('{{ singularVar }}')) ?>
+            </div>
+
+            <!-- Cím és infó blokk -->
+            <div class="col">
+                <h3 class="card-title mb-0"><?= {% if useDomain %}__d('{{ plugin }}', {% else %}__({% endif %}'{{ pluralVar|capitalize }}') ?></h3>
+                <p class="text-secondary m-0"><?= __('Edit line double click on the line') ?></p>
+            </div>
+
+            <!-- Kereső űrlap -->
+            <div class="col-12 col-md-auto ms-md-auto">
+                <?php
+                $searchClearUrl = [
+                    'controller' => '{{ pluralVar|capitalize }}',
+                    'action' => 'index',
+                    '?' => ['clear' => 'search'],
+                ];
+                if (!empty($parentContext)) {
+                    $searchClearUrl['?'][$parentContext['foreignKey']] = $parentContext['foreignKeyValue'];
+                    $searchClearUrl['?']['parent_filter'] = $parentContext['parentFilter'];
+                }
+                ?>
+                <?= $this->KvForm->search('search', $searchClearUrl) ?>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table table-hover table-sm table-bordered-vertical">
+            <thead>
+                <tr>
+{% set timestampRendered = false %}
+{% for field in fields %}
+{% set colData = Bake.columnData(field, schema) %}
+{% if field == primaryKey[0] %}
+<?php if (isset($showId) && $showId): ?>
+                    <th class="{{ colData.type }} {{ field }}"><?= $this->Paginator->sort('{{ field }}', '#') ?></th>
+<?php endif; ?>
+{% elseif field ends with '_count' %}
+<?php if (isset($showCounterFields) && $showCounterFields): ?>
+                    <th class="{{ colData.type }} {{ field }}"><?= $this->Paginator->sort('{{ field }}') ?></th>
+<?php endif; ?>
+{% elseif field == 'pos' %}
+<?php if (isset($showPos) && $showPos): ?>
+                    <th class="{{ colData.type }} {{ field }}"><?= $this->Paginator->sort('pos', __('Pos')) ?></th>
+<?php endif; ?>
+{% elseif field == 'visible' %}
+<?php if (isset($showVisible) && $showVisible): ?>
+                    <th class="{{ colData.type }} {{ field }}"><?= $this->Paginator->sort('visible', __('Visible')) ?></th>
+<?php endif; ?>
+{% elseif field in ['created', 'modified'] %}
+{% if not timestampRendered %}
+{% set timestampRendered = true %}
+<?php if ((isset($showCreated) && $showCreated) || (isset($showModified) && $showModified)): ?>
+                    <th class="datetime">
+<?php if (isset($showCreated) && $showCreated): ?>
+                        <?= $this->Paginator->sort('created', __('Létrehozva')) ?>
+<?php endif; ?>
+<?php if ((isset($showCreated) && $showCreated) && (isset($showModified) && $showModified)): ?>
+                        <br>
+<?php endif; ?>
+<?php if (isset($showModified) && $showModified): ?>
+                        <?= $this->Paginator->sort('modified', __('Módosítva')) ?>
+<?php endif; ?>
+                    </th>
+<?php endif; ?>
+{% endif %}
+{% else %}
+{%~ set isKey = false %}
+{%~ set colType = colData.type %}
+{%~ if associations.BelongsTo is defined %}
+	{%~ for alias, details in associations.BelongsTo %}
+		{%~ if field == details.foreignKey %}
+			{%~ set isKey = true %}
+			{%~ set colType = 'string' %}
+		{%~ endif %}
+	{%~ endfor %}
+{%~ endif %}
+                    <th class="{{ colType }} {{ field }}"><?= $this->Paginator->sort('{{ field }}') ?></th>
+{% endif %}
+{% endfor %}
+{% if childAssociations is not empty %}
+                    <th class="child-actions w-1"><?= __('Related') ?></th>
+{% endif %}
+                    <th class="actions w-1"><?= __('Actions') ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (!empty(${{ pluralVar }}) && count(${{ pluralVar }}) > 0): ?>
+                <?php foreach (${{ pluralVar }} as ${{ singularVar }}): ?>
+                <?php $isLastViewed = (!empty($lastViewedId) && $lastViewedId == {{ pk|raw }}); ?>
+                <tr
+                    id="row-<?= (int){{ pk|raw }} ?>"
+                    class="<?= $isLastViewed ? 'last-viewed' : '' ?>"
+                    data-edit-url="<?= $this->Url->build(['action' => 'edit', {{ pk|raw }}]) ?>"
+                >
+{% set timestampBodyRendered = false %}
+{% for field in fields %}
+{% set columnData = Bake.columnData(field, schema) %}
+{% if field == primaryKey[0] %}
+<?php if (isset($showId) && $showId): ?>
+                    <td class="{{ columnData.type }} {{ field }}"><?= h({{ pk|raw }}) ?></td>
+<?php endif; ?>
+{% elseif field ends with '_count' %}
+<?php if (isset($showCounterFields) && $showCounterFields): ?>
+                    <td class="{{ columnData.type }} {{ field }} text-end"><?= $this->Number->format(${{ singularVar }}->{{ field }}) ?></td>
+<?php endif; ?>
+{% elseif field == 'pos' %}
+<?php if (isset($showPos) && $showPos): ?>
+                    <td class="{{ columnData.type }} {{ field }}"><?= h(${{ singularVar }}->pos) ?></td>
+<?php endif; ?>
+{% elseif field == 'visible' %}
+<?php if (isset($showVisible) && $showVisible): ?>
+                    <td class="{{ columnData.type }} {{ field }}"><?= ${{ singularVar }}->visible ? '<span class="badge bg-green-lt">' . __('Igen') . '</span>' : '<span class="badge bg-secondary-lt">' . __('Nem') . '</span>' ?></td>
+<?php endif; ?>
+{% elseif field in ['created', 'modified'] %}
+{% if not timestampBodyRendered %}
+{% set timestampBodyRendered = true %}
+<?php if ((isset($showCreated) && $showCreated) || (isset($showModified) && $showModified)): ?>
+                    <td class="datetime text-nowrap">
+<?php if (isset($showCreated) && $showCreated): ?>
+                        <small class="d-block text-muted"><?= h(${{ singularVar }}->created?->format('Y-m-d H:i')) ?></small>
+<?php endif; ?>
+<?php if (isset($showModified) && $showModified): ?>
+                        <span><?= h(${{ singularVar }}->modified?->format('Y-m-d H:i')) ?></span>
+<?php endif; ?>
+                    </td>
+<?php endif; ?>
+{% endif %}
+{% else %}
+    {%~ set isKey = false %}
+    {%~ if associations.BelongsTo is defined %}
+        {%~ for alias, details in associations.BelongsTo %}
+            {%~ if field == details.foreignKey %}
+                {%~ set isKey = true %}
+                    <td class="string {{ field }}">
+                        <?= $this->KvForm->linkBelongsToCell(${{ singularVar }}, '{{ details.property }}', '{{ details.displayField }}', '{{ details.controller }}', '{{ details.primaryKey[0] }}') ?>
+                    </td>
+            {%~ endif %}
+        {%~ endfor %}
+    {%~ endif %}
+    {%~ if isKey is not same as(true) %}
+        {%~ set supportsLabel = Bake.enumSupportsLabel(field, schema) %}
+        {%~ if columnData.type starts with 'enum-' %}
+                    <td class="{{ columnData.type }} {{ field }}"><?= ${{ singularVar }}->{{ field }} === null ? '' : h(${{ singularVar }}->{{ field }}->{% if supportsLabel %}label(){% else %}value{% endif %}) ?></td>
+        {%~ elseif columnData.type in ['datetime', 'timestamp'] %}
+                    <td class="datetime text-nowrap"><?= h(${{ singularVar }}->{{ field }}?->format('Y-m-d H:i')) ?></td>
+        {%~ elseif columnData.type == 'date' %}
+                    <td class="date text-nowrap"><?= h(${{ singularVar }}->{{ field }}?->format('Y-m-d')) ?></td>
+        {%~ elseif columnData.type == 'boolean' %}
+                    <td class="{{ columnData.type }} {{ field }}"><?= ${{ singularVar }}->{{ field }} ? '<span class="badge bg-green-lt">' . __('Igen') . '</span>' : '<span class="badge bg-secondary-lt">' . __('Nem') . '</span>' ?></td>
+        {%~ elseif columnData.type in ['integer', 'biginteger', 'smallinteger', 'tinyinteger', 'float', 'decimal'] %}
+                    <td class="{{ columnData.type }} {{ field }} text-end"><?= ${{ singularVar }}->{{ field }} === null ? '' : $this->Number->format(${{ singularVar }}->{{ field }}) ?></td>
+        {%~ else %}
+                    <td class="{{ columnData.type }} {{ field }}"><?= $highlight(${{ singularVar }}->{{ field }}) ?></td>
+        {%~ endif %}
+    {%~ endif %}
+{% endif %}
+{% endfor %}
+{% if childAssociations is not empty %}
+                    <td class="child-actions">
+                        <div class="btn-list flex-nowrap align-items-center">
+{% for alias, details in childAssociations %}
+                            <?= $this->KvForm->linkChildList('{{ details.controller }}', '{{ details.foreignKey }}', {{ pk|raw }}, '{{ modelClass }}', __('{{ alias|humanize }}')) ?>
+{% endfor %}
+                        </div>
+                    </td>
+{% endif %}
+                    <td class="actions">
+                        <div class="btn-list flex-nowrap align-items-center">
+                            <?= $this->KvForm->actionView(['action' => 'view', {{ pk|raw }}]) ?>
+                            <?= $this->KvForm->actionEdit(['action' => 'edit', {{ pk|raw }}]) ?>
+                            <?= $this->KvForm->actionDelete(['action' => 'delete', {{ pk|raw }}], (string)(${{ singularVar }}->{{ displayField }} ?? '')) ?>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                <?php else: ?>
+                <tr>
+                    <td colspan="100" class="text-center py-4 text-muted">
+                        <?= __('Nincs megjeleníthető adat.') ?>
+                    </td>
+                </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?= $this->element('KvAdmin.pagination') ?>
+
+</div>
+
+<?= $this->element('KvAdmin.modal-delete') ?>
+
+<?php
+// --- 1. Kereső gyorsgombok (Ctrl + K) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('advanced-table-search');
+    const shortcutHint = document.getElementById('search-shortcut-hint');
+
+    if (searchInput) {
+        document.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+                e.preventDefault();
+                searchInput.focus();
+                searchInput.select();
+            }
+        });
+
+        if (shortcutHint) {
+            searchInput.addEventListener('focus', function () {
+                shortcutHint.innerHTML = 'Enter &crarr;';
+            });
+
+            searchInput.addEventListener('blur', function () {
+                shortcutHint.textContent = 'ctrl + K';
+            });
+        }
+
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                this.blur();
+            }
+        });
+    }
+
+    const clearBtn = document.getElementById('btn-clear-search');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = this.getAttribute('href');
+        });
+    }
+});
+JS, ['block' => 'script']);
+
+// --- 2. Dupla kattintás soron: ugrás szerkesztésre ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.table tbody tr[data-edit-url]').forEach(function (row) {
+        row.addEventListener('dblclick', function (e) {
+            if (e.target.closest('a, button, input, select, textarea, label, .actions, .child-actions')) {
+                return;
+            }
+
+            const editUrl = row.getAttribute('data-edit-url');
+            if (editUrl) {
+                window.location.href = editUrl;
+            }
+        });
+    });
+});
+JS, ['block' => 'script']);
+
+if (!empty($scrollToId)) {
+    // --- 3. Automatikus görgetés az utolsó megtekintett rekordhoz ---
+    $this->Html->scriptBlock(<<<JS
+document.addEventListener('DOMContentLoaded', function () {
+    let targetRow = document.getElementById('row-{$scrollToId}');
+    if (!targetRow) {
+        targetRow = document.querySelector('.table tr.last-viewed') || document.querySelector('.table tbody tr');
+    }
+
+    if (targetRow) {
+        const headerOffset = 120;
+        const rowPosition = targetRow.getBoundingClientRect().top;
+        const offsetPosition = rowPosition + window.pageYOffset - headerOffset;
+
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+        });
+    }
+});
+JS, ['block' => 'script']);
+}
+?>
+
+<?php /*
+// --- 3. Automatikus görgetés – mindig aktív változat: vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    let targetRow = document.querySelector('.table tr.last-viewed') || document.querySelector('.table tbody tr');
+    if (targetRow) {
+        const headerOffset = 120;
+        const rowPosition = targetRow.getBoundingClientRect().top;
+        window.scrollTo({ top: rowPosition + window.pageYOffset - headerOffset, behavior: 'smooth' });
+    }
+});
+JS, ['block' => 'script']);
+*/ ?>

@@ -1,0 +1,61 @@
+{#
+/**
+ * Add/Edit űrlap – CSS és JS asset betöltések (sütéskor mezőtípus alapján aktív vagy kommentben).
+ */
+#}
+<?php
+{% if hasTomSelect %}
+$this->Html->css([
+    'KvAdmin./vendor/tom-select/css/tom-select.bootstrap5.min',
+], ['block' => 'css']);
+{% else %}
+/*
+$this->Html->css([
+    'KvAdmin./vendor/tom-select/css/tom-select.bootstrap5.min',
+], ['block' => 'css']);
+*/
+{% endif %}
+
+{% if hasFlatpickr %}
+$this->Html->css([
+    'KvAdmin./vendor/flatpickr/dist/flatpickr.min',
+], ['block' => 'css']);
+{% else %}
+/*
+$this->Html->css([
+    'KvAdmin./vendor/flatpickr/dist/flatpickr.min',
+], ['block' => 'css']);
+*/
+{% endif %}
+
+{% set formScripts = [] %}
+{% if hasTomSelect %}
+{% set formScripts = formScripts|merge(['KvAdmin./vendor/tom-select/js/tom-select.complete.min']) %}
+{% endif %}
+{% if hasPhone %}
+{% set formScripts = formScripts|merge(['KvAdmin./vendor/imask/dist/imask.min']) %}
+{% endif %}
+{% if hasTextFields %}
+{% set formScripts = formScripts|merge(['KvAdmin./vendor/hugerte/hugerte.min']) %}
+{% endif %}
+{% if hasFlatpickr %}
+{% set formScripts = formScripts|merge([
+    'KvAdmin./vendor/flatpickr/dist/flatpickr.min',
+    'KvAdmin./vendor/flatpickr/dist/l10n/hu',
+]) %}
+{% endif %}
+
+{% if formScripts|length > 0 %}
+$this->Html->script({{ Bake.exportArray(formScripts)|raw }}, ['block' => 'script']);
+{% else %}
+/*
+$this->Html->script([
+    'KvAdmin./vendor/tom-select/js/tom-select.complete.min',
+    'KvAdmin./vendor/imask/dist/imask.min',
+    'KvAdmin./vendor/hugerte/hugerte.min',
+    'KvAdmin./vendor/flatpickr/dist/flatpickr.min',
+    'KvAdmin./vendor/flatpickr/dist/l10n/hu',
+], ['block' => 'script']);
+*/
+{% endif %}
+?>

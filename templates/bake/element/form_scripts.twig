@@ -1,0 +1,409 @@
+{#
+/**
+ * Add/Edit űrlap – különálló scriptBlock-ok (egyesével ki/be kapcsolható PHP kommenttel).
+ */
+#}
+<?php
+{% if hasPhone %}
+// --- 1. Telefon maszk (IMask) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    const phoneElem = document.getElementById('phone');
+    if (phoneElem && typeof IMask !== 'undefined') {
+        IMask(phoneElem, { mask: '+{36} 00/000-00-00' });
+    }
+});
+JS, ['block' => 'footer']);
+{% else %}
+/*
+// --- 1. Telefon maszk (IMask) – phone mező hozzáadásakor vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    const phoneElem = document.getElementById('phone');
+    if (phoneElem && typeof IMask !== 'undefined') {
+        IMask(phoneElem, { mask: '+{36} 00/000-00-00' });
+    }
+});
+JS, ['block' => 'footer']);
+*/
+{% endif %}
+
+{% if hasTomSelectSingle %}
+// --- 2. Tom Select – egyszeres választó (BelongsTo / FK mezők) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    const requiredSelectMessage = {{ Bake.exportVar(__('This field cannot be left empty'))|raw }};
+
+    document.querySelectorAll('.tom-select:not(.multi-select)').forEach(function (element) {
+        if (!element.tomselect && typeof TomSelect !== 'undefined') {
+            const selectedOption = element.querySelector('option[selected]');
+            const selectedValue = selectedOption && selectedOption.value !== '' ? selectedOption.value : '';
+            const tomSelect = new TomSelect(element, {
+                copyClassesToDropdown: false,
+                create: false,
+                allowEmptyOption: true,
+                maxOptions: null,
+                openOnFocus: true,
+                placeholder: '',
+                items: selectedValue ? [selectedValue] : [],
+                wrapperClass: 'ts-wrapper form-select single'
+            });
+
+            const setEmptyNativeValue = function () {
+                Array.from(element.options).forEach(function (option) {
+                    option.selected = option.value === '';
+                });
+                element.value = '';
+            };
+
+            const toggleRequiredState = function (value) {
+                if (!element.required) {
+                    return;
+                }
+                const isEmpty = !value;
+                tomSelect.wrapper.classList.toggle('is-invalid', isEmpty);
+                let feedback = tomSelect.wrapper.parentElement.querySelector('.invalid-feedback.tom-select-required');
+                if (isEmpty) {
+                    if (!feedback) {
+                        feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback tom-select-required d-block';
+                        feedback.textContent = requiredSelectMessage;
+                        tomSelect.wrapper.after(feedback);
+                    }
+                } else if (feedback) {
+                    feedback.remove();
+                }
+            };
+
+            tomSelect.on('change', function (value) {
+                if (!value) {
+                    setEmptyNativeValue();
+                }
+                toggleRequiredState(value);
+            });
+
+            if (!selectedValue) {
+                tomSelect.clear(true);
+                setEmptyNativeValue();
+            }
+
+            const form = element.closest('form');
+            if (form && !form.dataset.tomSelectRequired) {
+                form.dataset.tomSelectRequired = '1';
+                form.addEventListener('submit', function (event) {
+                    let firstInvalid = null;
+                    form.querySelectorAll('select.tom-select[required]:not(.multi-select)').forEach(function (select) {
+                        const ts = select.tomselect;
+                        const value = ts ? ts.getValue() : select.value;
+                        if (!value) {
+                            event.preventDefault();
+                            if (ts) {
+                                ts.wrapper.classList.add('is-invalid');
+                                let feedback = ts.wrapper.parentElement.querySelector('.invalid-feedback.tom-select-required');
+                                if (!feedback) {
+                                    feedback = document.createElement('div');
+                                    feedback.className = 'invalid-feedback tom-select-required d-block';
+                                    feedback.textContent = requiredSelectMessage;
+                                    ts.wrapper.after(feedback);
+                                }
+                                if (!firstInvalid) {
+                                    firstInvalid = ts;
+                                }
+                            }
+                        }
+                    });
+                    if (firstInvalid) {
+                        firstInvalid.focus();
+                        firstInvalid.open();
+                    }
+                });
+            }
+        }
+    });
+});
+JS, ['block' => 'footer']);
+{% else %}
+/*
+// --- 2. Tom Select – egyszeres választó – FK/BelongsTo mező hozzáadásakor vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    const requiredSelectMessage = {{ Bake.exportVar(__('This field cannot be left empty'))|raw }};
+    document.querySelectorAll('.tom-select:not(.multi-select)').forEach(function (element) {
+        if (!element.tomselect && typeof TomSelect !== 'undefined') {
+            new TomSelect(element, { wrapperClass: 'ts-wrapper form-select single' });
+        }
+    });
+});
+JS, ['block' => 'footer']);
+*/
+{% endif %}
+
+{% if hasTomSelectMulti %}
+// --- 3. Tom Select – többes választó (BelongsToMany) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.tom-select.multi-select').forEach(function (element) {
+        if (!element.tomselect && typeof TomSelect !== 'undefined') {
+            new TomSelect(element, {
+                plugins: {
+                    'remove_button': { title: 'Eltávolítás' },
+                    'clear_button': { title: 'Összes törlése' }
+                },
+                persist: false,
+                create: false,
+                mode: 'multi',
+                copyClassesToDropdown: false,
+                wrapperClass: 'ts-wrapper form-select multi'
+            });
+        }
+    });
+});
+JS, ['block' => 'footer']);
+{% else %}
+/*
+// --- 3. Tom Select – többes választó – BelongsToMany hozzáadásakor vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.tom-select.multi-select').forEach(function (element) {
+        if (!element.tomselect && typeof TomSelect !== 'undefined') {
+            new TomSelect(element, { mode: 'multi', wrapperClass: 'ts-wrapper form-select multi' });
+        }
+    });
+});
+JS, ['block' => 'footer']);
+*/
+{% endif %}
+
+{% if hasTextFields %}
+// --- 4. HugeRTE szerkesztő (text mezők / tab fülök) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof hugerte === 'undefined') {
+        return;
+    }
+
+    const isDarkMode = document.body.getAttribute('data-bs-theme') === 'dark';
+
+    document.querySelectorAll('.hugerte-editor').forEach(function (editorElement) {
+        hugerte.init({
+            target: editorElement,
+            height: 600,
+            menubar: 'file edit view insert format tools table help',
+            statusbar: true,
+            promotion: false,
+            branding: false,
+            plugins: [
+                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                'insertdatetime', 'media', 'table', 'help', 'wordcount', 'codesample'
+            ],
+            toolbar: [
+                'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | removeformat',
+                'alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link image media codesample | code preview fullscreen'
+            ],
+            content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: ' + (isDarkMode ? '#f8fafc' : '#1e293b') + '; background-color: ' + (isDarkMode ? '#1b2431' : '#ffffff') + '; padding: 0.4375rem 0.75rem; margin: 0; } body > *:first-child { margin-top: 0 !important; } p { margin: 0 0 0.5rem 0; }',
+            font_family_formats: 'Arial=Arial,Helvetica,sans-serif; Segoe UI=Segoe UI,Roboto,Helvetica,sans-serif; Courier New=courier new,courier,monospace; Georgia=georgia,palatino; Times New Roman=times new roman,times;',
+            font_size_formats: '10px 12px 14px 16px 18px 24px 36px',
+            skin: isDarkMode ? 'oxide-dark' : 'oxide',
+            content_css: isDarkMode ? 'dark' : 'default',
+            setup: function (editor) {
+                editor.on('change keyup paste', function () {
+                    editor.save();
+                });
+                editor.on('init', function () {
+                    editor.getDoc().body.style.fontFamily = 'Arial, sans-serif';
+                    editor.getDoc().body.style.fontSize = '14px';
+                });
+            }
+        });
+    });
+
+    document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(function (tabEl) {
+        tabEl.addEventListener('shown.bs.tab', function () {
+            document.querySelectorAll('.hugerte-editor').forEach(function (el) {
+                const editor = hugerte.get(el.id);
+                if (editor) {
+                    editor.execCommand('mceRepaint');
+                }
+            });
+        });
+    });
+});
+JS, ['block' => 'footer']);
+{% else %}
+/*
+// --- 4. HugeRTE szerkesztő – text mező / tab fül hozzáadásakor vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof hugerte === 'undefined') {
+        return;
+    }
+    document.querySelectorAll('.hugerte-editor').forEach(function (editorElement) {
+        hugerte.init({ target: editorElement, height: 600 });
+    });
+});
+JS, ['block' => 'footer']);
+*/
+{% endif %}
+
+{% if hasDateTime %}
+// --- 5a. Flatpickr – dátum és idő (datetime mezők) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof flatpickr === 'undefined') {
+        return;
+    }
+    flatpickr('.flatpickr-datetime', {
+        locale: 'hu',
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: 'Y-m-d H:i:S',
+        altInput: true,
+        altFormat: 'Y.m.d. H:i',
+        allowInput: true,
+        disableMobile: true
+    });
+});
+JS, ['block' => 'footer']);
+{% else %}
+/*
+// --- 5a. Flatpickr – dátum és idő – datetime mező hozzáadásakor vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof flatpickr === 'undefined') {
+        return;
+    }
+    flatpickr('.flatpickr-datetime', {
+        locale: 'hu',
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: 'Y-m-d H:i:S',
+        altInput: true,
+        altFormat: 'Y.m.d. H:i',
+        allowInput: true,
+        disableMobile: true
+    });
+});
+JS, ['block' => 'footer']);
+*/
+{% endif %}
+
+{% if hasDate %}
+// --- 5b. Flatpickr – dátum (date mezők) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof flatpickr === 'undefined') {
+        return;
+    }
+    flatpickr('.flatpickr-date', {
+        locale: 'hu',
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'Y.m.d.',
+        allowInput: true,
+        disableMobile: true
+    });
+});
+JS, ['block' => 'footer']);
+{% else %}
+/*
+// --- 5b. Flatpickr – dátum – date mező hozzáadásakor vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof flatpickr === 'undefined') {
+        return;
+    }
+    flatpickr('.flatpickr-date', {
+        locale: 'hu',
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'Y.m.d.',
+        allowInput: true,
+        disableMobile: true
+    });
+});
+JS, ['block' => 'footer']);
+*/
+{% endif %}
+
+{% if hasTime %}
+// --- 5c. Flatpickr – idő (time mezők) ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof flatpickr === 'undefined') {
+        return;
+    }
+    flatpickr('.flatpickr-time', {
+        locale: 'hu',
+        enableTime: true,
+        noCalendar: true,
+        time_24hr: true,
+        dateFormat: 'H:i:S',
+        altInput: true,
+        altFormat: 'H:i',
+        allowInput: true,
+        disableMobile: true
+    });
+});
+JS, ['block' => 'footer']);
+{% else %}
+/*
+// --- 5c. Flatpickr – idő – time mező hozzáadásakor vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof flatpickr === 'undefined') {
+        return;
+    }
+    flatpickr('.flatpickr-time', {
+        locale: 'hu',
+        enableTime: true,
+        noCalendar: true,
+        time_24hr: true,
+        dateFormat: 'H:i:S',
+        altInput: true,
+        altFormat: 'H:i',
+        allowInput: true,
+        disableMobile: true
+    });
+});
+JS, ['block' => 'footer']);
+*/
+{% endif %}
+
+/*
+// --- 6. Number Spinner gombok – spinner használathoz vedd ki a kommentet ---
+$this->Html->scriptBlock(<<<'JS'
+document.addEventListener('DOMContentLoaded', function () {
+    document.body.addEventListener('click', function (e) {
+        const button = e.target.closest('.input-group [data-action]');
+        if (!button) {
+            return;
+        }
+
+        const group = button.closest('.input-group');
+        const input = group ? group.querySelector('input[type="number"]') : null;
+        if (!input) {
+            return;
+        }
+
+        const stepStr = input.step && input.step !== 'any' ? input.step : '1';
+        const step = parseFloat(stepStr) || 1;
+        const min = input.min !== '' ? parseFloat(input.min) : -Infinity;
+        const max = input.max !== '' ? parseFloat(input.max) : Infinity;
+        let currentVal = parseFloat(input.value) || 0;
+        const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
+
+        if (button.dataset.action === 'increment') {
+            currentVal = Math.min(max, currentVal + step);
+        } else if (button.dataset.action === 'decrement') {
+            currentVal = Math.max(min, currentVal - step);
+        }
+
+        input.value = currentVal.toFixed(decimals);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+});
+JS, ['block' => 'footer']);
+*/
+?>

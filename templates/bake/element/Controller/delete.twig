@@ -1,0 +1,70 @@
+{#
+/**
+ * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
+ * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ *
+ * Licensed under The MIT License
+ * For full copyright and license information, please see the LICENSE.txt
+ * Redistributions of files must retain the above copyright notice.
+ *
+ * @copyright     Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ * @link          https://cakephp.org CakePHP(tm) Project
+ * @since         2.0.0
+ * @license       https://www.opensource.org/licenses/mit-license.php MIT License
+ */
+#}
+{% set pkField = primaryKey[0] ?? 'id' %}
+    /**
+     * Delete method
+     *
+     * @param string|null $id {{ singularHumanName }} id.
+     * @return \Cake\Http\Response|null Redirects to index.
+     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
+     */
+    public function delete($id = null)
+    {
+        $this->getRequest()->allowMethod(['post', 'delete']);
+        
+        $table = $this->fetchTable('{{ currentModelName }}');
+        ${{ singularName }} = $table->get($id);
+		${{ singularName }}Name = ${{ singularName }}->name;
+{% if Bake.hasPlugin('Authorization') %}
+        $this->Authorization->authorize(${{ singularName }});
+{% endif %}
+
+        $this->session->delete('LastViewed.{{ singularName }}_id');
+
+        // Törlés utáni visszagörgetés: megkeressük a közvetlenül előtte lévő rekordot
+        $neighbor = $table->find()
+            ->select(['{{ pkField }}'])
+            ->where(['{{ pkField }} <' => (int)$id])
+            ->orderByDesc('{{ pkField }}')
+            ->first();
+
+        // Ha nincs előtte lévő rekord (első volt), megpróbáljuk a következőt keresni
+        if (!$neighbor) {
+            $neighbor = $table->find()
+                ->select(['{{ pkField }}'])
+                ->where(['{{ pkField }} >' => (int)$id])
+                ->orderByAsc('{{ pkField }}')
+                ->first();
+        }
+
+        if ($neighbor) {
+            $this->session->write('ScrollTo.{{ singularName }}_id', (int)$neighbor->{{ pkField }});
+        } else {
+            $this->session->delete('ScrollTo.{{ singularName }}_id');
+        }
+
+        if ($table->delete(${{ singularName }})) {
+            $this->Flash->success({% if plugin %}__d('{{ plugin }}', {% else %}__({% endif %}'The {0} has been successfully deleted.', __('{{ singularHumanName|lower }}')), ['plugin' => 'KvAdmin']);
+        } else {
+            $this->Flash->error({% if plugin %}__d('{{ plugin }}', {% else %}__({% endif %}'Could not delete the record. Please try again.'), ['plugin' => 'KvAdmin']);
+        }
+
+        $redirectParams = (array)$this->session->read('Paging.{{ currentModelName }}.params');
+        return $this->redirect([
+            'action' => 'index',
+            '?' => $redirectParams,
+        ]);
+    }
