@@ -8,7 +8,7 @@
  */
 $topheaderElement = $this->elementExists('topheader') ? 'topheader' : 'KvAdmin.topheader';
 $headerElement = $this->elementExists('header') ? 'header' : 'KvAdmin.header';
-$sidebarElement = $this->elementExists('sidebar') ? 'sidebar' : 'KvAdmin.sidebar';
+//$sidebarElement = $this->elementExists('sidebar') ? 'sidebar' : 'KvAdmin.sidebar';
 $footerElement = $this->elementExists('footer') ? 'footer' : 'KvAdmin.footer';
 ?>
 <!doctype html>
@@ -27,7 +27,7 @@ $footerElement = $this->elementExists('footer') ? 'footer' : 'KvAdmin.footer';
 
     <div class="page">
         <!-- Sidebar -->
-        <?= $this->element($sidebarElement) ?>
+        <?php //= $this->element($sidebarElement) ?>
 
         <!-- TopHeader -->
         <?= $this->element($topheaderElement) ?>

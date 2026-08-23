@@ -1,5 +1,20 @@
 <?php
-// Mindig az URL prefixből – a controller $prefix változója lehet üres/felülírva.
+use Cake\Core\Plugin;
+
+/*
+$appLogoPath = WWW_ROOT . 'img' . DS . 'logo_5.svg';
+$pluginLogoPath = Plugin::path('KvAdmin') . 'webroot' . DS . 'img' . DS . 'logo.svg';
+
+if (file_exists($appLogoPath)) {
+    // A fő alkalmazás webrootjából tölti: /img/logo_5.svg
+    $logoSrc = 'logo_5.svg';
+} elseif (file_exists($pluginLogoPath)) {
+    // A KvAdmin pluginból tölti: /kv_admin/img/logo.svg
+    $logoSrc = 'KvAdmin.logo.svg';
+} else {
+    $logoSrc = null;
+}
+*/
 $prefixKey = strtolower((string)$this->getRequest()->getParam('prefix', ''));
 $targetUrl = $prefixKey !== '' ? '/' . $prefixKey : '/';
 
@@ -228,6 +243,8 @@ $roleLabel = $roleLabels[$prefixKey] ?? '';
 
             <?php if ($this->elementExists('topheader_user_menu')) : ?>
                 <?= $this->element('topheader_user_menu') ?>
+            <?php else: ?>
+                <?= $this->element('KvAdmin.topheader_user_menu') ?>
             <?php endif; ?>
 
         </div>
