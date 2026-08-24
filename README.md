@@ -22,7 +22,7 @@ Just add the plugin for **src/Application.php** file.
 ```
 **Add this line to end of the config/bootstrap.php file:**
 ```php
-Configure::write('Bake.theme', 'jeffAdmin5');
+Configure::write('Bake.theme', 'KvAdmin');
 
 Configure::write('Session', [
     'defaults' => 'php',
