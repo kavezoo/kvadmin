@@ -117,6 +117,16 @@ class AppController extends KvAdminAppController
 # cake bake template all --prefix member
 ```
 
+**You can customize the menu**:
+Just copy the next files to your's prefix folder in **templates/Admin/element** and edit this own files:
+```bash
+# cp vendor/kavezoo/kvadmin/templates/element/header.php templates/Admin/element/header.php
+# cp vendor/kavezoo/kvadmin/templates/element/topheader.php templates/Admin/element/topheader.php
+# cp vendor/kavezoo/kvadmin/templates/element/footer.php templates/Admin/element/footer.php
+# cp vendor/kavezoo/kvadmin/templates/element/topheader_user_menu.php templates/Admin/element/topheader_user_menu.php
+```
+
+
 Enjoy it!
 
 
