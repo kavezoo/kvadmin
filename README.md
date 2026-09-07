@@ -151,4 +151,5 @@ cp vendor/kavezoo/kvadmin/templates/element/topheader_user_menu.php templates/Ad
 
 ---
 
-Built with [Tabler UI](https://tabler.io). Enjoy it!
+Built with [Tabler UI](https://tabler.io).
+Enjoy it!
